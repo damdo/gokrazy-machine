@@ -44,25 +44,30 @@ but there are various modes with which you can run gom.
 
 ### with various disk images
 
-Run gom machine from a **full disk img**.
+Run machine from a **full disk img**.
 ```
 gom play --full /tmp/drive.img
 ```
 
-Run gom machine from **different disk parts (boot,root,mbr)**.
+Run machine from **different disk parts (boot,root,mbr)**.
 ```
 gom play --boot=/tmp/boot.fat --root=/tmp/root.squashfs --mbr=/tmp/mbr.img
 ```
 
-
-Run gom machine from **remote OCI artifact**.
+Run machine from **remote OCI artifact** (the image won't be kept locally).
 ```
-gom play --oci docker.io/damdo/prova:g3
+gom play --arch amd64 --oci docker.io/damdo/gokrazy:sample-amd64
+
+# or with an arm64 image
+gom play --arch arm64 --oci docker.io/damdo/gokrazy:sample-arm64
 ```
 
 ### with various networking setups
 
-By default gom will use a nat network.
+By default a gom machine will use a nat network, and will map port 80, 443 and 22 to random ports.
+These random assigned ports can be found in the log output of gom, at the top, before the machine is started. 
+
+But if you need to do specific or extra mappings, or use different modes, here is how you can do it.
 
 Run gom machine in **NAT network**, with specific port forwarding.
 Set `--net-nat="<outer-port>-:<inner-port>,<outer-port>-:<inner-port>"`
