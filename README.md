@@ -40,7 +40,19 @@ The main command is
 gom play --full /tmp/drive.img
 ```
 
-but there are various modes with which you can run gom.
+The gorkazy web UI will be available at a certain address and port
+depending on how you configured networking.
+
+By default it will be available at `http://locahost:PORT`, where the
+port is a randomly assigned to achieve host to guest mapping over NAT.
+
+The NATTED port can be found in the log output of gom, at the top, where the qemu Args
+are reported before the machine is started, in the `-netdev` argument.
+
+e.g. if you see: `-netdev user,id=net0,hostfwd=tcp::59681-:80,hostfwd=tcp::59682-:443,hostfwd=tcp::59683-:22`
+then the port mapped to the guest port `80` is `59681`, meaning the gokrazy web UI will be at `http://locahost:59681`.
+
+There are various other modes with which you can run gom, take a look below!
 
 ### with various disk images
 
@@ -65,7 +77,9 @@ gom play --arch arm64 --oci docker.io/damdo/gokrazy:sample-arm64
 ### with various networking setups
 
 By default a gom machine will use a nat network, and will map port 80, 443 and 22 to random ports.
-These random assigned ports can be found in the log output of gom, at the top, before the machine is started. 
+These random assigned ports can be found in the log output of gom, at the top, where the qemu Args
+are reported before the machine is started, in the `-netdev` argument. 
+e.g. `-netdev user,id=net0,hostfwd=tcp::59681-:80,hostfwd=tcp::59682-:443,hostfwd=tcp::59683-:22`
 
 But if you need to do specific or extra mappings, or use different modes, here is how you can do it.
 
