@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"math/rand"
 	"os"
@@ -13,6 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/damdo/gokrazy-machine/internal/disk"
+	"github.com/damdo/gokrazy-machine/internal/oci"
+	"github.com/damdo/gokrazy-machine/internal/ports"
+	"github.com/damdo/gokrazy-machine/internal/qemu"
 	"github.com/spf13/cobra"
 )
 
@@ -43,9 +49,8 @@ type playImplConfig struct {
 const arm64, amd64 = "arm64", "amd64"
 const modeOCI, modeFull, modeParts = "oci", "full", "parts"
 
-var needsSudo bool
-
 var playImpl playImplConfig
+var errUnsupportedArch = errors.New("error unsupported architecture")
 
 func init() {
 	playCmd.Flags().StringVar(&playImpl.arch, "arch", amd64, "arch")
@@ -62,10 +67,10 @@ func init() {
 }
 
 func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-
 	// Setup a random source.
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	// Setup a base temporary directory for gom.
 	baseDir, err := os.MkdirTemp("", "gom")
 	if err != nil {
 		log.Fatalln(fmt.Errorf("error creating temporary directory: %w", err))
@@ -74,10 +79,10 @@ func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr
 	// These are hardcoded values for filenames
 	// that we expect to find in as oci artifacts at the oci reference url
 	// passed in.
-	var mbrSource string = "mbr.img"
-	var bootSource string = "boot.img"
-	var rootSource string = "root.squashfs"
-	var destPath string = "disk.img"
+	mbrSource := "mbr.img"
+	bootSource := "boot.img"
+	rootSource := "root.squashfs"
+	destPath := "disk.img"
 
 	diskFile, _, err := obtainDiskFile(ctx, baseDir, mbrSource, bootSource, rootSource, destPath)
 	if err != nil {
@@ -115,18 +120,19 @@ func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr
 		playImpl.baseCmd = "sudo"
 	}
 
-	qemu := exec.CommandContext(ctx, playImpl.baseCmd, qemuArgs...)
+	qemuRun := exec.CommandContext(ctx, playImpl.baseCmd, qemuArgs...)
+
 	// Pipe Stderr and Stdout to the OSes ones.
-	qemu.Stderr = os.Stderr
-	qemu.Stdout = os.Stdout
+	qemuRun.Stderr = os.Stderr
+	qemuRun.Stdout = os.Stdout
 
 	log.Println("about to start qemu with config:")
-	fmt.Println(fmtQemuConfig(qemu.Args))
+	fmt.Println(fmtQemuConfig(qemuRun.Args))
 
 	log.Println("starting qemu:")
 	go func() {
-		if err := qemu.Start(); err != nil {
-			log.Fatalln(fmt.Errorf("%v: %v", qemu.Args, err))
+		if err := qemuRun.Start(); err != nil {
+			log.Fatalln(fmt.Errorf("%v: %w", qemuRun.Args, err))
 		}
 	}()
 
@@ -134,14 +140,16 @@ func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr
 	<-ctx.Done()
 
 	// Cleanup the various temp/generated files used.
-	os.RemoveAll(baseDir)
+	if err := os.RemoveAll(baseDir); err != nil {
+		log.Println(fmt.Errorf("error cleaning up temporary directory: %w", err))
+	}
 
 	// If a signal was sent, unblock the main thread and
 	// kill the qemu process.
-	if err := qemu.Process.Signal(os.Interrupt); err != nil {
+	if err := qemuRun.Process.Signal(os.Interrupt); err != nil {
 		log.Print(fmt.Errorf("failed to terminate the qemu process cleanly: %w", err))
 
-		if err := qemu.Process.Kill(); err != nil {
+		if err := qemuRun.Process.Kill(); err != nil {
 			log.Fatal(fmt.Errorf("failed to kill the qemu process,"+
 				"a qemu process might have been leaked"+
 				"you can try and kill it manually: %w", err))
@@ -182,7 +190,7 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 		log.Println("starting in oci mode")
 
 		// Pull OCI artifacts.
-		if err := ociPull(ctx, playImpl.oci, "", "", baseDir); err != nil {
+		if err := oci.Pull(ctx, playImpl.oci, "", "", baseDir); err != nil {
 			return "", "", fmt.Errorf("error pulling remote oci artifacts: %w", err)
 		}
 
@@ -190,7 +198,7 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 			mbrSourcePath, bootSourcePath, rootSourcePath, destPath)
 
 		// Create a full disk img starting from disk pieces (mbr, boot, root).
-		if err := createFullDisk(mbrSourcePath, bootSourcePath, rootSourcePath, destPath); err != nil {
+		if err := disk.PartsToFull(mbrSourcePath, bootSourcePath, rootSourcePath, destPath); err != nil {
 			log.Fatalln(fmt.Errorf("unable to create full disk img from oci artifact files: %w", err))
 		}
 
@@ -203,7 +211,7 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 		log.Printf("merging disk part images: %s, %s, %s to a single %s image", playImpl.mbr, playImpl.boot, playImpl.root, destPath)
 
 		// Create a full disk img starting from disk pieces (mbr, boot, root).
-		if err := createFullDisk(playImpl.mbr, playImpl.boot, playImpl.root, destPath); err != nil {
+		if err := disk.PartsToFull(playImpl.mbr, playImpl.boot, playImpl.root, destPath); err != nil {
 			log.Fatalln(
 				fmt.Errorf("unable to create full disk img from files (disk part images: %s, %s, %s): %w",
 					playImpl.mbr, playImpl.boot, playImpl.root, err))
@@ -227,6 +235,7 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 
 func setArchSpecificArgs(baseDir string, qemuArgs *[]string) error {
 	var archArgs []string
+	var biosFilePerm fs.FileMode = 0644
 
 	switch playImpl.arch {
 	case amd64:
@@ -243,17 +252,17 @@ func setArchSpecificArgs(baseDir string, qemuArgs *[]string) error {
 			"-bios", qemuBios,
 		)
 
-		biosFile, err := embedFS.ReadFile("bin/QEMU_EFI.fd")
+		biosFile, err := qemu.EmbedFS.ReadFile("QEMU_EFI.fd")
 		if err != nil {
-			log.Fatalln(fmt.Errorf("error reading embedded %s bios file: %w", arm64, err))
+			return fmt.Errorf("error reading embedded %s bios file: %w", arm64, err)
 		}
 
-		if err := os.WriteFile(qemuBios, biosFile, 777); err != nil {
-			log.Fatalln(fmt.Errorf("error writing embedded %s bios file to disk: %w", arm64, err))
+		if err := os.WriteFile(qemuBios, biosFile, biosFilePerm); err != nil {
+			return fmt.Errorf("error writing embedded %s bios file to disk: %w", arm64, err)
 		}
 
 	default:
-		log.Fatalf("error: unsupported architecture '%s'\n", playImpl.arch)
+		return fmt.Errorf("%w: %s", errUnsupportedArch, playImpl.arch)
 	}
 
 	*qemuArgs = append(*qemuArgs, archArgs...)
@@ -262,9 +271,11 @@ func setArchSpecificArgs(baseDir string, qemuArgs *[]string) error {
 
 func setNetworkingArgs(qemuArgs *[]string) (bool, error) {
 	var needsSudo bool
+	defaultOpenPortsNumber := 3
+
 	switch {
 	case playImpl.netNat == "" && playImpl.netShared == "":
-		freePorts, err := getFreePorts(3)
+		freePorts, err := ports.GetFreePorts(defaultOpenPortsNumber)
 		if err != nil {
 			return false, fmt.Errorf("error getting free ports: %w", err)
 		}
@@ -306,16 +317,4 @@ func setNetworkingArgs(qemuArgs *[]string) (bool, error) {
 	}
 
 	return needsSudo, nil
-}
-
-func cleanup(ctx context.Context, arch, mode string) error {
-	if arch == arm64 {
-		if err := os.Remove("./.QEMU_EFI.fd"); err != nil {
-			return fmt.Errorf("error cleaning up temporary %s bios file: %w", arm64, err)
-		}
-	}
-
-	// TODO, remove disk img files, if it was downloaded/converted.
-
-	return nil
 }

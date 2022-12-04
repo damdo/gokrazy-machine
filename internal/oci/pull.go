@@ -1,9 +1,10 @@
-package cmd
+package oci
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path"
@@ -15,7 +16,10 @@ import (
 	"oras.land/oras-go/v2/registry/remote/auth"
 )
 
-func ociPull(ctx context.Context, image string, username string, password string, outputDir string) error {
+var blobFilePermission fs.FileMode = 0644
+
+// Pull pulls the OCI artifacts at the OCI Image reference and downloads them to the specified dir.
+func Pull(ctx context.Context, image string, username string, password string, outputDir string) error {
 	// Parse image into chunks.
 	chunks := strings.Split(image, "/")
 	subChunks := strings.Split(chunks[2], ":")
@@ -77,7 +81,7 @@ func ociPull(ctx context.Context, image string, username string, password string
 		}
 
 		dest := path.Join(outputDir, filename)
-		if err := os.WriteFile(dest, pulledBlob, 0644); err != nil {
+		if err := os.WriteFile(dest, pulledBlob, blobFilePermission); err != nil {
 			return fmt.Errorf("failed to write layer content (blob) to file %s: %w", dest, err)
 		}
 	}
