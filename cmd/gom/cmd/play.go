@@ -57,7 +57,8 @@ var errUnsupportedArch = errors.New("error unsupported architecture")
 func init() {
 	playCmd.Flags().StringVar(&playImpl.arch, "arch", amd64, "arch")
 	playCmd.Flags().StringVar(&playImpl.full, "full", "", "path to the img of the drive file")
-	playCmd.Flags().StringVar(&playImpl.oci, "oci", "", "path to the remote oci artifact reference (e.g. docker.io/damdo/prova:g3)")
+	playCmd.Flags().StringVar(&playImpl.oci, "oci", "", "path to the remote oci artifact reference "+
+		"(e.g. docker.io/damdo/prova:g3)")
 	playCmd.Flags().StringVar(&playImpl.boot, "boot", "", "path to the boot part of the drive")
 	playCmd.Flags().StringVar(&playImpl.root, "root", "", "path to the root part of the drive")
 	playCmd.Flags().StringVar(&playImpl.ociUser, "oci.user", "", "the username for the OCI registry")
@@ -181,7 +182,8 @@ func fmtQemuConfig(cfg []string) string {
 	return out
 }
 
-func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName, rootSourceName, destName string) (string, string, error) {
+func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName,
+	bootSourceName, rootSourceName, destName string) (string, string, error) {
 	var diskFile, mode string
 
 	mbrSourcePath := path.Join(baseDir, mbrSourceName)
@@ -212,7 +214,8 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 	case playImpl.boot != "" && playImpl.root != "" && playImpl.mbr != "":
 		log.Println("starting in multi part disk mode")
 
-		log.Printf("merging disk part images: %s, %s, %s to a single %s image", playImpl.mbr, playImpl.boot, playImpl.root, destPath)
+		log.Printf("merging disk part images: %s, %s, %s to a single %s image",
+			playImpl.mbr, playImpl.boot, playImpl.root, destPath)
 
 		// Create a full disk img starting from disk pieces (mbr, boot, root).
 		if err := disk.PartsToFull(playImpl.mbr, playImpl.boot, playImpl.root, destPath); err != nil {
@@ -231,7 +234,8 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 		mode = modeFull
 
 	default:
-		log.Fatalln("unrecognized mode, please specify either: `--oci` or `--full` or (`--mbr` + `--boot` + `--root`)")
+		log.Fatalln("unrecognized mode, please specify either: " +
+			" `--oci` or `--full` or (`--mbr` + `--boot` + `--root`)")
 	}
 
 	return diskFile, mode, nil
@@ -314,7 +318,9 @@ func setNetworkingArgs(qemuArgs *[]string) (bool, error) {
 		addrRange := strings.Split(playImpl.netShared, ",")
 		netShared := []string{"-netdev", "vmnet-shared,id=internal", "-device", "e1000,netdev=internal"}
 
-		r := fmt.Sprintf(",start-address=%s,end-address=%s,subnet-mask=%s", addrRange[0], addrRange[1], addrRange[2])
+		r := fmt.Sprintf(",start-address=%s,end-address=%s,subnet-mask=%s",
+			addrRange[0], addrRange[1], addrRange[2])
+
 		netShared[1] += r
 
 		*qemuArgs = append(*qemuArgs, netShared...)
