@@ -33,17 +33,19 @@ var playCmd = &cobra.Command{
 }
 
 type playImplConfig struct {
-	baseCmd   string
-	arch      string
-	full      string
-	netNat    string
-	netShared string
-	oci       string
-	boot      string
-	root      string
-	mbr       string
-	mem       string
-	cores     string
+	baseCmd     string
+	arch        string
+	full        string
+	netNat      string
+	netShared   string
+	oci         string
+	boot        string
+	root        string
+	mbr         string
+	mem         string
+	cores       string
+	ociUser     string
+	ociPassword string
 }
 
 const arm64, amd64 = "arm64", "amd64"
@@ -58,6 +60,8 @@ func init() {
 	playCmd.Flags().StringVar(&playImpl.oci, "oci", "", "path to the remote oci artifact reference (e.g. docker.io/damdo/prova:g3)")
 	playCmd.Flags().StringVar(&playImpl.boot, "boot", "", "path to the boot part of the drive")
 	playCmd.Flags().StringVar(&playImpl.root, "root", "", "path to the root part of the drive")
+	playCmd.Flags().StringVar(&playImpl.ociUser, "oci.user", "", "the username for the OCI registry")
+	playCmd.Flags().StringVar(&playImpl.ociPassword, "oci.password", "", "the password for the OCI registry")
 	playCmd.Flags().StringVar(&playImpl.mbr, "mbr", "", "path to the mbr part of the drive")
 	playCmd.Flags().StringVar(&playImpl.mem, "memory", "1G", "memory, expects a non-negative number below 2^64."+
 		" Optional suffix k, M, G, T, P or E means kilo-, mega-, giga-, tera-, peta- and exabytes, respectively.")
@@ -190,7 +194,7 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName, bootSourceName,
 		log.Println("starting in oci mode")
 
 		// Pull OCI artifacts.
-		if err := oci.Pull(ctx, playImpl.oci, "", "", baseDir); err != nil {
+		if err := oci.Pull(ctx, playImpl.oci, playImpl.ociUser, playImpl.ociPassword, baseDir); err != nil {
 			return "", "", fmt.Errorf("error pulling remote oci artifacts: %w", err)
 		}
 
