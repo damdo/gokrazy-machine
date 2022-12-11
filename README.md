@@ -1,6 +1,6 @@
 ## gom (gokrazy-machine)
 
-A lightweight virtual/emulated machine to run and develop for [gokrazy](gokrazy.org).
+A lightweight virtual/emulated machine based on qemu, to run and develop for [gokrazy](gokrazy.org).
 
 It supports all major Linux distributions and macOS (both intel and apple silicon (M1,M2,..)) >= `12.x`.
 
@@ -63,23 +63,29 @@ gom play --full /tmp/drive.img
 
 Run machine from **different disk parts (boot,root,mbr)**.
 ```sh
-gom play --boot=/tmp/boot.fat --root=/tmp/root.squashfs --mbr=/tmp/mbr.img
+gom play --boot=/tmp/boot.img --root=/tmp/root.img --mbr=/tmp/mbr.img
 ```
 
 Run machine from **remote OCI artifact** (the image won't be kept locally).
+NOTE: to work with this tool an OCI artifact will need to be constructed in [this way](./docs/oci.md).
 ```sh
 gom play --arch amd64 --oci docker.io/damdo/gokrazy:sample-amd64
 
 # or with an arm64 image
 
 gom play --arch arm64 --oci docker.io/damdo/gokrazy:sample-arm64
+
+# if the OCI artifact reference is in a private repository, you can specify credentials
+# by using --oci.user and --oci.password
+gom play --arch amd64 --oci.user "<youruser>" --oci.password "<yourpassword>" --oci docker.io/damdo/gokrazy:sample-amd64
 ```
+
 
 ### with various networking setups
 
 By default a gom machine will use a nat network, and will map port 80, 443 and 22 to random ports.
 These random assigned ports can be found in the log output of gom, at the top, where the qemu Args
-are reported before the machine is started, in the `-netdev` argument. 
+are reported before the machine is started, in the `-netdev` argument.
 e.g. `-netdev user,id=net0,hostfwd=tcp::59681-:80,hostfwd=tcp::59682-:443,hostfwd=tcp::59683-:22`
 
 But if you need to do specific or extra mappings, or use different modes, here is how you can do it.

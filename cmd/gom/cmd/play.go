@@ -58,7 +58,7 @@ func init() {
 	playCmd.Flags().StringVar(&playImpl.arch, "arch", amd64, "arch")
 	playCmd.Flags().StringVar(&playImpl.full, "full", "", "path to the img of the drive file")
 	playCmd.Flags().StringVar(&playImpl.oci, "oci", "", "path to the remote oci artifact reference "+
-		"(e.g. docker.io/damdo/prova:g3)")
+		"(e.g. docker.io/damdo/gokrazy:sample-amd64)")
 	playCmd.Flags().StringVar(&playImpl.boot, "boot", "", "path to the boot part of the drive")
 	playCmd.Flags().StringVar(&playImpl.root, "root", "", "path to the root part of the drive")
 	playCmd.Flags().StringVar(&playImpl.ociUser, "oci.user", "", "the username for the OCI registry")
@@ -86,7 +86,7 @@ func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr
 	// passed in.
 	mbrSource := "mbr.img"
 	bootSource := "boot.img"
-	rootSource := "root.squashfs"
+	rootSource := "root.img"
 	destPath := "disk.img"
 
 	diskFile, _, err := obtainDiskFile(ctx, baseDir, mbrSource, bootSource, rootSource, destPath)
