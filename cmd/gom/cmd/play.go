@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/damdo/gokrazy-machine/internal/disk"
+	"github.com/damdo/gokrazy-machine/internal/gaf"
 	"github.com/damdo/gokrazy-machine/internal/oci"
 	"github.com/damdo/gokrazy-machine/internal/ports"
 	"github.com/damdo/gokrazy-machine/internal/qemu"
@@ -39,6 +40,7 @@ type playImplConfig struct {
 	netNat       string
 	netShared    string
 	oci          string
+	gaf          string
 	boot         string
 	root         string
 	mbr          string
@@ -50,7 +52,7 @@ type playImplConfig struct {
 }
 
 const arm64, amd64 = "arm64", "amd64"
-const modeOCI, modeFull, modeParts = "oci", "full", "parts"
+const modeOCI, modeFull, modeParts, modeGaf = "oci", "full", "parts", "gaf"
 
 var playImpl playImplConfig
 var errUnsupportedArch = errors.New("error unsupported architecture")
@@ -58,6 +60,7 @@ var errUnsupportedArch = errors.New("error unsupported architecture")
 func init() {
 	playCmd.Flags().StringVar(&playImpl.arch, "arch", amd64, "arch")
 	playCmd.Flags().StringVar(&playImpl.full, "full", "", "path to the img of the drive file")
+	playCmd.Flags().StringVar(&playImpl.gaf, "gaf", "", "path to the .gaf (gokrazy archive format) of the drive file")
 	playCmd.Flags().StringVar(&playImpl.oci, "oci", "", "path to the remote oci artifact reference "+
 		"(e.g. docker.io/damdo/gokrazy:sample-amd64)")
 	playCmd.Flags().StringVar(&playImpl.boot, "boot", "", "path to the boot part of the drive")
@@ -89,9 +92,10 @@ func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr
 	mbrSource := "mbr.img"
 	bootSource := "boot.img"
 	rootSource := "root.img"
+	sbomSource := "sbom.json"
 	destPath := "disk.img"
 
-	diskFile, _, err := obtainDiskFile(ctx, baseDir, mbrSource, bootSource, rootSource, destPath)
+	diskFile, _, err := obtainDiskFile(ctx, baseDir, mbrSource, bootSource, rootSource, sbomSource, destPath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("error obtaining disk file: %w", err))
 	}
@@ -185,12 +189,13 @@ func fmtQemuConfig(cfg []string) string {
 }
 
 func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName,
-	bootSourceName, rootSourceName, destName string) (string, string, error) {
+	bootSourceName, rootSourceName, sbomSourceName, destName string) (string, string, error) {
 	var diskFile, mode string
 
 	mbrSourcePath := path.Join(baseDir, mbrSourceName)
 	bootSourcePath := path.Join(baseDir, bootSourceName)
 	rootSourcePath := path.Join(baseDir, rootSourceName)
+	// sbomSourcePath := path.Join(baseDir, sbomSourceName)
 	destPath := path.Join(baseDir, destName)
 
 	switch {
@@ -212,6 +217,81 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName,
 
 		diskFile = destPath
 		mode = modeOCI
+
+	case playImpl.gaf != "":
+		log.Println("starting in gaf mode")
+
+		// Extract multi part images from gaf.
+
+		f, err := os.Open(path.Clean(playImpl.gaf))
+		if err != nil {
+			log.Fatalln(fmt.Errorf("unable to open gaf file: %w", err))
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			log.Fatalln(fmt.Errorf("unable to stat gaf file: %w", err))
+		}
+
+		gafReadClosers, err := gaf.Extract(ctx, f, fi.Size())
+		if err != nil {
+			f.Close()
+			log.Fatalln(fmt.Errorf("unable to extract gaf file content: %w", err))
+		}
+
+		// MBR.
+		mbrFile, err := os.Create(mbrSourcePath)
+		if err != nil {
+			mbrFile.Close()
+			log.Fatalln(fmt.Errorf("unable to create temporary MBR file: %w", err))
+		}
+
+		if _, err := io.Copy(mbrFile, gafReadClosers.MBRRC); err != nil {
+			mbrFile.Close()
+			log.Fatalln(fmt.Errorf("unable to write temporary MBR file: %w", err))
+		}
+		mbrFile.Close()
+		gafReadClosers.MBRRC.Close()
+
+		// Boot.
+		bootFile, err := os.Create(bootSourcePath)
+		if err != nil {
+			bootFile.Close()
+			log.Fatalln(fmt.Errorf("unable to create temporary boot file: %w", err))
+		}
+
+		if _, err := io.Copy(bootFile, gafReadClosers.BootRC); err != nil {
+			bootFile.Close()
+			log.Fatalln(fmt.Errorf("unable to write temporary boot file: %w", err))
+		}
+		bootFile.Close()
+		gafReadClosers.BootRC.Close()
+
+		// Root.
+		rootFile, err := os.Create(rootSourcePath)
+		if err != nil {
+			rootFile.Close()
+			log.Fatalln(fmt.Errorf("unable to create temporary root file: %w", err))
+		}
+
+		if _, err := io.Copy(rootFile, gafReadClosers.RootRC); err != nil {
+			rootFile.Close()
+			log.Fatalln(fmt.Errorf("unable to write temporary root file: %w", err))
+		}
+		rootFile.Close()
+		gafReadClosers.RootRC.Close()
+
+		log.Printf("merging oci artifact files (disk part images: %s, %s, %s) to a single %s image",
+			mbrSourcePath, bootSourcePath, rootSourcePath, destPath)
+
+		// Create a full disk img starting from disk pieces (mbr, boot, root).
+		if err := disk.PartsToFull(mbrSourcePath, bootSourcePath, rootSourcePath, destPath); err != nil {
+			log.Fatalln(fmt.Errorf("unable to create full disk img from oci artifact files: %w", err))
+		}
+
+		diskFile = destPath
+		mode = modeOCI
+
+		f.Close()
 
 	case playImpl.boot != "" && playImpl.root != "" && playImpl.mbr != "":
 		log.Println("starting in multi part disk mode")

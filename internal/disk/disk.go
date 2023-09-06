@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/CalebQ42/squashfs"
 	"github.com/gokrazy/tools/packer"
 )
 
@@ -23,11 +24,14 @@ const (
 
 // PartsToFull merges multi parts (mbr, boot, root) image files of a disk into a single disk image file.
 func PartsToFull(mbrSourcePath, bootSourcePath, rootSourcePath, destPath string) error {
-	// TODO: read this from the source imgs if possible
+	// TODO: make this a mandatory flag for parts and gaf.
 	var targetStorageBytes = 2147483648
 
-	// TODO: read hostname from source root img
-	p := packer.NewPackForHost("gokrazy")
+	hostname, err := getHostname(rootSourcePath)
+	if err != nil {
+		return fmt.Errorf("error getting hostname from root file: %w", err)
+	}
+	p := packer.NewPackForHost(hostname)
 
 	// TODO: read these from the source imgs if possible
 	p.UsePartuuid = true
@@ -102,4 +106,23 @@ func PartsToFull(mbrSourcePath, bootSourcePath, rootSourcePath, destPath string)
 	}
 
 	return nil
+}
+
+func getHostname(rootSourcePath string) (string, error) {
+	f, err := os.Open(rootSourcePath)
+	if err != nil {
+		return "", fmt.Errorf("error opening root file: %w", err)
+	}
+	rd, err := squashfs.NewReader(f)
+	if err != nil {
+		return "", fmt.Errorf("error reading root file squashFS: %w", err)
+	}
+
+	hostnamePath := "etc/hostname"
+	b, err := rd.ReadFile(hostnamePath)
+	if err != nil {
+		return "", fmt.Errorf("error opening root squashFS hostname file %q: %w", hostnamePath, err)
+	}
+
+	return string(b), nil
 }
