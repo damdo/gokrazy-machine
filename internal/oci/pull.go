@@ -19,7 +19,7 @@ import (
 var blobFilePermission fs.FileMode = 0644
 
 // Pull pulls the OCI artifacts at the OCI Image reference and downloads them to the specified dir.
-func Pull(ctx context.Context, image string, username string, password string, outputDir string) error {
+func Pull(ctx context.Context, image string, username string, password string, outputDir string, plainHTTP bool) error {
 	// Parse image into chunks.
 	chunks := strings.Split(image, "/")
 	subChunks := strings.Split(chunks[2], ":")
@@ -41,6 +41,10 @@ func Pull(ctx context.Context, image string, username string, password string, o
 				Password: password,
 			}, nil
 		},
+	}
+
+	if plainHTTP {
+		repo.PlainHTTP = true
 	}
 
 	log.Printf("pulling blobs from %s/%s:%s\n", registryName, repositoryName, imageReference)
