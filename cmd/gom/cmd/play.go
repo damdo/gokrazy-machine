@@ -93,9 +93,10 @@ func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr
 	bootSource := "boot.img"
 	rootSource := "root.img"
 	sbomSource := "sbom.json"
+	gafSoruce := "disk.gaf"
 	destPath := "disk.img"
 
-	diskFile, _, err := obtainDiskFile(ctx, baseDir, mbrSource, bootSource, rootSource, sbomSource, destPath)
+	diskFile, _, err := obtainDiskFile(ctx, baseDir, mbrSource, bootSource, rootSource, sbomSource, gafSoruce, destPath)
 	if err != nil {
 		log.Fatalln(fmt.Errorf("error obtaining disk file: %w", err))
 	}
@@ -189,41 +190,38 @@ func fmtQemuConfig(cfg []string) string {
 }
 
 func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName,
-	bootSourceName, rootSourceName, sbomSourceName, destName string) (string, string, error) {
+	bootSourceName, rootSourceName, sbomSourceName, gafSourceName, destName string) (string, string, error) {
 	var diskFile, mode string
 
 	mbrSourcePath := path.Join(baseDir, mbrSourceName)
 	bootSourcePath := path.Join(baseDir, bootSourceName)
 	rootSourcePath := path.Join(baseDir, rootSourceName)
 	// sbomSourcePath := path.Join(baseDir, sbomSourceName)
+	gafSourcePath := path.Join(baseDir, gafSourceName)
 	destPath := path.Join(baseDir, destName)
 
 	switch {
-	case playImpl.oci != "":
-		log.Println("starting in oci mode")
+	case playImpl.gaf != "" || playImpl.oci != "":
+		gafPath := ""
+		if playImpl.oci != "" {
+			log.Println("starting in oci mode")
+			// Pull OCI artifacts.
+			if err := oci.Pull(ctx, playImpl.oci, playImpl.ociUser, playImpl.ociPassword, baseDir, playImpl.ociPlainHTTP); err != nil {
+				return "", "", fmt.Errorf("error pulling remote oci artifacts: %w", err)
+			}
 
-		// Pull OCI artifacts.
-		if err := oci.Pull(ctx, playImpl.oci, playImpl.ociUser, playImpl.ociPassword, baseDir, playImpl.ociPlainHTTP); err != nil {
-			return "", "", fmt.Errorf("error pulling remote oci artifacts: %w", err)
+			gafPath = gafSourcePath
+			mode = modeOCI
+		} else {
+			log.Println("starting in gaf mode")
+
+			gafPath = playImpl.gaf
+			mode = modeGaf
 		}
-
-		log.Printf("merging oci artifact files (disk part images: %s, %s, %s) to a single %s image",
-			mbrSourcePath, bootSourcePath, rootSourcePath, destPath)
-
-		// Create a full disk img starting from disk pieces (mbr, boot, root).
-		if err := disk.PartsToFull(mbrSourcePath, bootSourcePath, rootSourcePath, destPath); err != nil {
-			log.Fatalln(fmt.Errorf("unable to create full disk img from oci artifact files: %w", err))
-		}
-
-		diskFile = destPath
-		mode = modeOCI
-
-	case playImpl.gaf != "":
-		log.Println("starting in gaf mode")
 
 		// Extract multi part images from gaf.
 
-		f, err := os.Open(path.Clean(playImpl.gaf))
+		f, err := os.Open(path.Clean(gafPath))
 		if err != nil {
 			log.Fatalln(fmt.Errorf("unable to open gaf file: %w", err))
 		}
@@ -289,7 +287,6 @@ func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName,
 		}
 
 		diskFile = destPath
-		mode = modeOCI
 
 		f.Close()
 

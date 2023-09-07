@@ -69,15 +69,17 @@ gom play --boot=/tmp/boot.img --root=/tmp/root.img --mbr=/tmp/mbr.img
 Run machine from **remote OCI artifact** (the image won't be kept locally).
 NOTE: to work with this tool an OCI artifact will need to be constructed in [this way](./docs/oci.md).
 ```sh
-gom play --arch amd64 --oci docker.io/damdo/gokrazy:sample-amd64
+gom play --arch amd64 --oci <your-oci-amd64-img-url>
 
 # or with an arm64 image
 
-gom play --arch arm64 --oci docker.io/damdo/gokrazy:sample-arm64
+gom play --arch arm64 --oci <your-oci-arm64-img-url>
 
 # if the OCI artifact reference is in a private repository, you can specify credentials
 # by using --oci.user and --oci.password
-gom play --arch amd64 --oci.user "<youruser>" --oci.password "<yourpassword>" --oci docker.io/damdo/gokrazy:sample-amd64
+gom play --arch amd64 --oci.user "<youruser>" --oci.password "<yourpassword>" --oci <your-oci-amd64-img-url>
+
+# if the OCI registry is HTTP only you can specify the --oci.plainHTTP=true flag
 ```
 
 Run machine from **.gaf** (Gokrazy Archive Format) disk.
