@@ -37,7 +37,7 @@ gom version
 
 The main command is
 ```sh
-gom play --full /tmp/drive.img
+gom play --full /tmp/disk.img
 ```
 
 The gorkazy web UI will be available at a certain address and port
@@ -58,7 +58,7 @@ There are various other modes with which you can run gom, take a look below!
 
 Run machine from a **full disk img**.
 ```sh
-gom play --full /tmp/drive.img
+gom play --full /tmp/disk.img
 ```
 
 Run machine from **different disk parts (boot,root,mbr)**.
@@ -78,6 +78,11 @@ gom play --arch arm64 --oci docker.io/damdo/gokrazy:sample-arm64
 # if the OCI artifact reference is in a private repository, you can specify credentials
 # by using --oci.user and --oci.password
 gom play --arch amd64 --oci.user "<youruser>" --oci.password "<yourpassword>" --oci docker.io/damdo/gokrazy:sample-amd64
+```
+
+Run machine from **.gaf** (Gokrazy Archive Format) disk.
+```sh
+gom play --gaf /tmp/disk.gaf
 ```
 
 
