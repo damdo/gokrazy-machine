@@ -3,6 +3,7 @@ module github.com/damdo/gokrazy-machine
 go 1.19
 
 require (
+	github.com/CalebQ42/squashfs v0.8.4
 	github.com/gokrazy/tools v0.0.0-20221120152115-b0f51bdf9220
 	github.com/opencontainers/image-spec v1.1.0-rc2
 	github.com/spf13/cobra v1.5.0
@@ -11,7 +12,6 @@ require (
 
 require (
 	github.com/CalebQ42/fuse v0.1.0 // indirect
-	github.com/CalebQ42/squashfs v0.8.4 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/klauspost/compress v1.16.7 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect

@@ -76,7 +76,7 @@ func init() {
 	playCmd.Flags().StringVar(&playImpl.netShared, "net-shared", "", "net shared")
 }
 
-func (r *playImplConfig) play(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+func (r *playImplConfig) play(ctx context.Context, _ []string, _, _ io.Writer) error {
 	// Setup a random source.
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -190,7 +190,7 @@ func fmtQemuConfig(cfg []string) string {
 }
 
 func obtainDiskFile(ctx context.Context, baseDir, mbrSourceName,
-	bootSourceName, rootSourceName, sbomSourceName, gafSourceName, destName string) (string, string, error) {
+	bootSourceName, rootSourceName, _, gafSourceName, destName string) (string, string, error) {
 	var diskFile, mode string
 
 	mbrSourcePath := path.Join(baseDir, mbrSourceName)

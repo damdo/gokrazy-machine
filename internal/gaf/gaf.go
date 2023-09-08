@@ -28,7 +28,7 @@ const (
 )
 
 // Extract extracts the content of a gaf archive.
-func Extract(ctx context.Context, source io.ReaderAt, size int64) (ReadClosers, error) {
+func Extract(_ context.Context, source io.ReaderAt, size int64) (ReadClosers, error) {
 	gafRCs := ReadClosers{}
 
 	reader, err := zip.NewReader(source, size)
