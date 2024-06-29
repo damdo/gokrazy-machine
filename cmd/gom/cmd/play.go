@@ -137,6 +137,7 @@ func (r *playImplConfig) play(ctx context.Context, _ []string, _, _ io.Writer) e
 	qemuRun := exec.CommandContext(ctx, playImpl.baseCmd, qemuArgs...)
 
 	// Pipe Stderr and Stdout to the OSes ones.
+	qemuRun.Stdin = os.Stdin
 	qemuRun.Stderr = os.Stderr
 	qemuRun.Stdout = os.Stdout
 
@@ -144,33 +145,18 @@ func (r *playImplConfig) play(ctx context.Context, _ []string, _, _ io.Writer) e
 	fmt.Println(fmtQemuConfig(qemuRun.Args))
 
 	log.Println("starting qemu:")
-	go func() {
-		if err := qemuRun.Start(); err != nil {
-			log.Fatalln(fmt.Errorf("%v: %w", qemuRun.Args, err))
-		}
-	}()
+	if err := qemuRun.Start(); err != nil {
+		log.Fatalln(fmt.Errorf("%v: %w", qemuRun.Args, err))
+	}
 
-	// Block until a SIGINT/SIGTEM signal happens (e.g. CTRL+C).
-	<-ctx.Done()
+	if err := qemuRun.Wait(); err != nil {
+		log.Println(fmt.Errorf("qemu.Wait(): %v", err)) //nolint:goerr113
+	}
 
 	// Cleanup the various temp/generated files used.
 	if err := os.RemoveAll(baseDir); err != nil {
 		log.Println(fmt.Errorf("error cleaning up temporary directory: %w", err))
 	}
-
-	// If a signal was sent, unblock the main thread and
-	// kill the qemu process.
-	if err := qemuRun.Process.Signal(os.Interrupt); err != nil {
-		log.Print(fmt.Errorf("failed to terminate the qemu process cleanly: %w", err))
-
-		if err := qemuRun.Process.Kill(); err != nil {
-			log.Fatal(fmt.Errorf("failed to kill the qemu process,"+
-				"a qemu process might have been leaked"+
-				"you can try and kill it manually: %w", err))
-		}
-	}
-
-	log.Println("qemu exited cleanly, shutting down")
 
 	return nil
 }
