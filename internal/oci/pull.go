@@ -35,7 +35,7 @@ func Pull(ctx context.Context, image string, username string, password string, o
 
 	// Setup the client credentials.
 	repo.Client = &auth.Client{
-		Credential: func(ctx context.Context, reg string) (auth.Credential, error) {
+		Credential: func(_ context.Context, _ string) (auth.Credential, error) {
 			return auth.Credential{
 				Username: username,
 				Password: password,
