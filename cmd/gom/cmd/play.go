@@ -23,6 +23,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const hostFwdPrefix = ",hostfwd=tcp::"
+
 // playCmd is gom play.
 var playCmd = &cobra.Command{
 	Use:   "play",
@@ -371,9 +373,9 @@ func setNetworkingArgs(qemuArgs *[]string) (bool, error) {
 		netNatDefault := []string{
 			"-device", "e1000,netdev=net0",
 			"-netdev", "user,id=net0" +
-				",hostfwd=tcp::" + fmt.Sprint(freePorts[0]) + "-:80" +
-				",hostfwd=tcp::" + fmt.Sprint(freePorts[1]) + "-:443" +
-				",hostfwd=tcp::" + fmt.Sprint(freePorts[2]) + "-:22",
+				hostFwdPrefix + fmt.Sprint(freePorts[0]) + "-:80" +
+				hostFwdPrefix + fmt.Sprint(freePorts[1]) + "-:443" +
+				hostFwdPrefix + fmt.Sprint(freePorts[2]) + "-:22",
 		}
 
 		*qemuArgs = append(*qemuArgs, netNatDefault...)
@@ -383,7 +385,7 @@ func setNetworkingArgs(qemuArgs *[]string) (bool, error) {
 
 		netNat := []string{"-netdev", "user,id=net0", "-device", "e1000,netdev=net0"}
 		for _, p := range ports {
-			netNat[1] += ",hostfwd=tcp::" + p
+			netNat[1] += hostFwdPrefix + p
 		}
 
 		*qemuArgs = append(*qemuArgs, netNat...)
