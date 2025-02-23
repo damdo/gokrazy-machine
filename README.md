@@ -1,3 +1,8 @@
+# THIS REPOSITORY IS DEPRECATED and ARCHIVED
+This repository is now deprecated as **gokrazy now directly support most of the functionality** that gokrazy-machine pioneered (thanks to [@stapelberg](https://github.com/stapelberg)).
+
+As such, I encourage people to use [`gok vm`](https://github.com/gokrazy/tools/blob/356b1f85aad3c7125e6b212f67bd471c2067af7c/internal/gok/vmrun.go#L26-L27) instead, and to direct any [feature request for it to the official gokrazy channels](https://github.com/gokrazy/gokrazy/issues).
+
 ## gom (gokrazy-machine)
 
 A lightweight virtual/emulated machine based on qemu, to run and develop for [gokrazy](gokrazy.org).
